@@ -80,6 +80,7 @@ locales = utils.load_locales(i18n_dir)
 DEFAULT_CHATTERBOX_BASE_URL = "http://127.0.0.1:4123/v1"
 DEFAULT_CHATTERBOX_MODEL = "chatterbox"
 DEFAULT_CHATTERBOX_VOICES = ["default-Female"]
+DEFAULT_ELEVENLABS_MODEL = "eleven_multilingual_v2"
 ONBOARDING_TOUR_KEY = "mpt-onboarding-v1"
 VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
@@ -1513,6 +1514,22 @@ def stable_selectbox(label, options, default_value, key, format_func=None, **kwa
     )
 
 
+def _render_tts_model_input(
+    provider_label, config_mapping, config_key, default_model, key
+):
+    """Render one consistent editable model field for model-backed TTS providers."""
+    model_name = st.text_input(
+        f"{provider_label} {tr('Model Name')}",
+        value=config_mapping.get(config_key, "") or default_model,
+        key=key,
+    )
+    config_mapping[config_key] = normalize_provider_override(
+        model_name,
+        default_model,
+    )
+    return model_name
+
+
 def sync_script_order_concat_mode():
     """在文案顺序匹配开启时固定使用顺序拼接，并在关闭后恢复原选择。"""
     widget_key = localized_widget_key("video_concat_mode_select")
@@ -2856,6 +2873,16 @@ def _render_audio_settings(panel, params):
                 )
                 config.app["gemini_api_key"] = gemini_tts_api_key
 
+                # 与 LLM 模型输入框保持一致：显示当前默认值，但只将真正的
+                # 用户覆盖写入配置，默认模型升级时未自定义的用户可自动跟随。
+                _render_tts_model_input(
+                    "Google Gemini TTS",
+                    config.app,
+                    "gemini_tts_model_name",
+                    voice.GEMINI_DEFAULT_TTS_MODEL,
+                    key="gemini_tts_model_name_input",
+                )
+
             # 当选择硅基流动时，显示API key输入框和说明信息
             if tts_mode_enabled and (
                 selected_tts_server == "siliconflow"
@@ -2871,6 +2898,13 @@ def _render_audio_settings(panel, params):
                 )
 
                 config.siliconflow["api_key"] = siliconflow_api_key
+                _render_tts_model_input(
+                    "SiliconFlow TTS",
+                    config.siliconflow,
+                    "model_id",
+                    voice.SILICONFLOW_DEFAULT_TTS_MODEL,
+                    key="siliconflow_tts_model_name_input",
+                )
 
             # 当选择 Xiaomi MiMo TTS 时，复用 MiMo LLM provider 的 API Key。
             # 这样用户如果同时使用 MiMo 生成文案和语音，只需要维护一份密钥。
@@ -2888,6 +2922,13 @@ def _render_audio_settings(panel, params):
                 )
 
                 config.app["mimo_api_key"] = mimo_api_key
+                _render_tts_model_input(
+                    "Xiaomi MiMo TTS",
+                    config.app,
+                    "mimo_tts_model_name",
+                    voice.MIMO_DEFAULT_TTS_MODEL,
+                    key="mimo_tts_model_name_input",
+                )
 
             # ElevenLabs API key section
             if tts_mode_enabled and (
@@ -2903,23 +2944,13 @@ def _render_audio_settings(panel, params):
                     key="elevenlabs_api_key_input",
                 )
 
-                _elevenlabs_models = [
-                    "eleven_multilingual_v2",
-                    "eleven_flash_v2_5",
-                    "eleven_v3",
-                ]
-                saved_elevenlabs_model = config.elevenlabs.get(
-                    "model_id", "eleven_multilingual_v2"
+                _render_tts_model_input(
+                    "ElevenLabs TTS",
+                    config.elevenlabs,
+                    "model_id",
+                    DEFAULT_ELEVENLABS_MODEL,
+                    key="elevenlabs_tts_model_name_input",
                 )
-                if saved_elevenlabs_model not in _elevenlabs_models:
-                    saved_elevenlabs_model = "eleven_multilingual_v2"
-                elevenlabs_model = stable_selectbox(
-                    tr("ElevenLabs Model"),
-                    options=_elevenlabs_models,
-                    default_value=saved_elevenlabs_model,
-                    key="elevenlabs_model_select",
-                )
-                config.elevenlabs["model_id"] = elevenlabs_model
 
                 if elevenlabs_api_key != saved_elevenlabs_api_key:
                     for k in list(st.session_state.keys()):
@@ -2950,14 +2981,13 @@ def _render_audio_settings(panel, params):
                 )
                 config.chatterbox["api_key"] = chatterbox_api_key
 
-                chatterbox_model = st.text_input(
-                    tr("Chatterbox Model"),
-                    value=config.chatterbox.get("model_id") or DEFAULT_CHATTERBOX_MODEL,
+                _render_tts_model_input(
+                    "Chatterbox TTS",
+                    config.chatterbox,
+                    "model_id",
+                    DEFAULT_CHATTERBOX_MODEL,
                     key="chatterbox_model_input",
                 )
-                config.chatterbox["model_id"] = (
-                    chatterbox_model or DEFAULT_CHATTERBOX_MODEL
-                ).strip()
 
                 _saved_chatterbox_voices = (
                     _parse_chatterbox_voices(config.chatterbox.get("voices"))

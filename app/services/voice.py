@@ -27,8 +27,10 @@ from app.config import config
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+GEMINI_DEFAULT_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+SILICONFLOW_DEFAULT_TTS_MODEL = "FunAudioLLM/CosyVoice2-0.5B"
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
-_MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
+MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
 # 已经手动调用过该分支的 API 用户升级后立即失效；WebUI 和新代码统一使用
@@ -385,7 +387,10 @@ def tts(
         # 格式: siliconflow:model:voice-Gender
         parts = voice_name.split(":")
         if len(parts) >= 3:
-            model = parts[1]
+            embedded_model = parts[1]
+            model = str(
+                config.siliconflow.get("model_id", "") or embedded_model
+            ).strip()
             # 移除性别后缀，例如 "alex-Male" -> "alex"
             voice_with_gender = parts[2]
             voice = voice_with_gender.split("-")[0]
@@ -1082,7 +1087,13 @@ def gemini_tts(
             logger.error("Gemini API key is not set")
             return None
 
-        logger.info(f"start, voice name: {voice_name}, try: 1")
+        model_name = str(
+            config.app.get("gemini_tts_model_name", "") or ""
+        ).strip() or GEMINI_DEFAULT_TTS_MODEL
+
+        logger.info(
+            f"start gemini tts, model: {model_name}, voice: {voice_name}, try: 1"
+        )
 
         generation_config = types.GenerateContentConfig(
             response_modalities=["AUDIO"],
@@ -1099,7 +1110,7 @@ def gemini_tts(
         # 请求结束后释放 HTTP 连接，同时保留原有 PCM 转码和字幕时间轴逻辑。
         with genai.Client(api_key=api_key) as client:
             response = client.models.generate_content(
-                model="gemini-2.5-flash-preview-tts",
+                model=model_name,
                 contents=text,
                 config=generation_config,
             )
@@ -1205,7 +1216,10 @@ def mimo_tts(
         return None
 
     base_url = config.app.get("mimo_base_url", "") or _MIMO_DEFAULT_BASE_URL
-    model_name = config.app.get("mimo_tts_model_name", "") or _MIMO_DEFAULT_TTS_MODEL
+    model_name = (
+        str(config.app.get("mimo_tts_model_name", "") or "").strip()
+        or MIMO_DEFAULT_TTS_MODEL
+    )
     style_prompt = config.app.get(
         "mimo_tts_style_prompt",
         "请用自然、清晰、适合短视频旁白的语气朗读。",
@@ -1294,7 +1308,9 @@ def elevenlabs_tts(
         return None
 
     if not model_id:
-        model_id = config.elevenlabs.get("model_id", "eleven_multilingual_v2")
+        model_id = (
+            config.elevenlabs.get("model_id", "") or "eleven_multilingual_v2"
+        )
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     headers = {

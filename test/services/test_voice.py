@@ -178,6 +178,37 @@ class TestVoiceService(unittest.TestCase):
         self.assertIs(result, sentinel)
         azure_tts_v1.assert_called_once()
 
+    def test_siliconflow_model_can_override_voice_embedded_model(self):
+        selected_voice = "siliconflow:FunAudioLLM/CosyVoice2-0.5B:alex-Male"
+        sentinel = object()
+
+        with patch.object(
+            vs.config,
+            "siliconflow",
+            dict(vs.config.siliconflow, model_id="custom/speech-model"),
+        ), patch.object(
+            vs,
+            "siliconflow_tts",
+            return_value=sentinel,
+        ) as siliconflow_tts:
+            result = vs.tts(
+                text="custom model",
+                voice_name=selected_voice,
+                voice_rate=1.25,
+                voice_file="/tmp/siliconflow-custom-model.mp3",
+                voice_volume=1.1,
+            )
+
+        self.assertIs(result, sentinel)
+        siliconflow_tts.assert_called_once_with(
+            "custom model",
+            "custom/speech-model",
+            "custom/speech-model:alex",
+            1.25,
+            "/tmp/siliconflow-custom-model.mp3",
+            1.1,
+        )
+
     @unittest.skipUnless(
         RUN_INTEGRATION_TESTS,
         "MPT_RUN_INTEGRATION_TESTS not set",
@@ -462,7 +493,11 @@ class TestVoiceService(unittest.TestCase):
         with patch("google.genai.Client", _FakeClient), patch.object(
             vs.config,
             "app",
-            dict(vs.config.app, gemini_api_key="test-key"),
+            dict(
+                vs.config.app,
+                gemini_api_key="test-key",
+                gemini_tts_model_name="gemini-custom-tts",
+            ),
         ):
             sub_maker = vs.gemini_tts(
                 text=text,
@@ -481,7 +516,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(sub_maker.offset[0][0], 0)
         self.assertLess(sub_maker.offset[0][1], sub_maker.offset[1][1])
         self.assertEqual(captured["client_kwargs"], {"api_key": "test-key"})
-        self.assertEqual(captured["model"], "gemini-2.5-flash-preview-tts")
+        self.assertEqual(captured["model"], "gemini-custom-tts")
         self.assertEqual(captured["contents"], text)
         self.assertEqual(captured["config"].response_modalities, ["AUDIO"])
         voice_config = captured["config"].speech_config.voice_config

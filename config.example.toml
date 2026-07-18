@@ -205,6 +205,10 @@ pollinations_model_name = ""
 # Speech, Subtitles, and Video / 语音、字幕与视频
 # -----------------------------------------------------------------------------
 
+# Google Gemini TTS shares gemini_api_key with the Gemini LLM provider.
+# Leave empty to use the application's current default model.
+gemini_tts_model_name = ""
+
 # Xiaomi MiMo TTS shares mimo_api_key and mimo_base_url with the MiMo LLM.
 mimo_tts_model_name = "mimo-v2.5-tts"
 mimo_tts_style_prompt = "请用自然、清晰、适合短视频旁白的语气朗读。"
@@ -309,6 +313,8 @@ speech_region = ""
 [siliconflow]
 # SiliconFlow TTS API key: https://siliconflow.cn/
 api_key = ""
+# Leave empty to use the model associated with the selected built-in voice.
+model_id = ""
 
 [elevenlabs]
 # API key: https://elevenlabs.io/app/settings/api-keys
